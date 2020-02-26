@@ -1,98 +1,55 @@
-require('dotenv').config()
-const { Client } = require('@elastic/elasticsearch');
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const graylog2 = require('graylog2');
+const crypto = require('crypto');
 
-(async () => {
-  if (!process.env.ELASTICSEARCH_HOST) {
-    throw Error('You should first fill the .env-example file and rename it to .env');
+const logger = new graylog2.graylog({
+  servers: [{ 'host': '<yourEndpoint>.stackhero-network.com', port: 12201 }]
+});
+
+
+// Send a simple message to Graylog
+logger.log('Simple message example');
+
+
+// Attach datas to a message
+logger.log(
+  'Password recovery email', // Message
+  // A json with what you want in it
+  {
+    subject: 'Password recovery',
+    language: 'en_US',
+    domain: 'gmail.com'
   }
-
-  // Connect to Elasticsearch server
-  console.log();
-  console.log('🔌  Connecting to Elasticsearch...');
-  console.log();
-
-  const client = new Client({
-    node: `https://${process.env.ELASTICSEARCH_HOST}:9200`,
-    auth: {
-      username: process.env.ELASTICSEARCH_USERNAME,
-      password: process.env.ELASTICSEARCH_PASSWORD
-    },
-    ssl: {
-      rejectUnauthorized: false // Always set this to true for security
-    }
-  });
-
-  // This is a good practice to close Elasticsearch connection when the Node.js process receives the signal "TERM".
-  process.once('SIGTERM', () => elasticsearch.close());
+);
 
 
-  console.log('-'.repeat(80));
-  console.log('🌟 Retrieving cluster health');
-  console.log();
-  const clusterHealth = await client.cluster.health({});
-  console.log(
-    Object.keys(clusterHealth.body)
-      .map(key => `\t- ${key}: ${clusterHealth.body[key]}`)
-      .join('\n')
-  );
-  console.log();
 
+// Advanced example
+const ip = '1.2.3.4';
+const ipHash = crypto.createHash('md5').update(ip).digest('hex');
 
-  console.log('-'.repeat(80));
-  console.log('🌟 Adding some datas to index "stackhero-test"');
-  console.log();
-  await client.index({
-    index: 'stackhero-test',
-    body: {
-      reason: 'Stackhero test, running by elasticsearchGettingStarted script',
-      date: new Date()
-    }
-  });
+const userId = '1234';
+const userIdHash = crypto.createHash('md5').update(userId).digest('hex');
 
+logger.log(
+  'API request', // Message
+  // A json with what you want in it
+  {
+    route: '/v1/messages/1234/',
+    method: 'POST',
 
-  console.log('-'.repeat(80));
-  console.log('🌟 Forcing index refresh to be sure to be able to read the datas in the next search');
-  console.log();
-  await client.indices.refresh({ index: 'stackhero-test' })
+    reponseTime: 12, // ms
+    reponseCode: 200,
 
-
-  console.log('-'.repeat(80));
-  console.log('🌟 Counting documents in index "stackhero-test"');
-  console.log();
-  const resCount = await client.count({
-    index: 'stackhero-test'
-  });
-
-  console.log(`Found ${resCount.body.count} document(s) in index "stackhero-test" (it should increment each time you run this script)`);
-
-
-  // Example of searching datas in an index:
-  // console.log('-'.repeat(80));
-  // console.log('🌟 Search for datas');
-  // console.log();
-  // const resSearch = await client.search({
-  //   index: 'stackhero-test',
-  //   body: {
-  //     query: {
-  //       range: {
-  //         date: {
-  //           lte: new Date()
-  //         }
-  //       }
-  //     }
-  //   }
-  // });
-
-  // console.log(resSearch.body.hits.hits);
-
-})().catch(error => {
-  console.error('');
-  console.error('🐞 An error occurred!');
-  console.error(error);
-  // Show HTTP body
-  if (error.meta && error.meta.body) {
-    console.error(JSON.stringify(error.meta.body));
+    ipHash,
+    userIdHash
   }
-  process.exit(1);
+);
+
+
+
+// Log your NodeJS uncaught errors
+process.on('uncaughtException', function(err) {
+  logger.log(err, {
+    type: 'uncaughtException'
+  });
 });
